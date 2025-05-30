@@ -93,7 +93,7 @@ jobs:
           fi
       - if:  env.upload == 'true'
         name: 上传到 Github Release
-        uses: ncipollo/release-action@v1.15.0
+        uses: ncipollo/release-action@v1.16.0
         with:
           artifacts: "PC_Engine_${{ env.new_pc_engine_version }}.zip"
           name: "PC 引擎 ${{ env.new_pc_engine_version }}"
