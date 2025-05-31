@@ -1,0 +1,109 @@
+name: Automate Check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '21 23 * * *'  # 每天 07:21 执行一次 (UTC时间)
+jobs:
+  check_os_version:
+    runs-on: ubuntu-latest
+    outputs:
+      os_result: ${{ steps.get_os_update.outputs.os_result }}
+    steps:
+      - name: 检出仓库文件
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: Human-Machine-Matrix/PCEngine_Check
+          ref: main
+          token: ${{ secrets.GH_TOKEN }}
+          submodules: recursive
+      - name: 检测系统更新
+        id: get_os_update
+        run: |
+          sudo apt-get install jq
+          sudo chmod -R 777 *
+          new_os_version=$(curl https://raw.githubusercontent.com/HegeKen/HyperData/refs/heads/main/devices/jinghu.json | jq -r '.branches[] | select(.tag == "CNXM") | .roms | to_entries | first.value.os' | sort -r | head -n1)
+          current_os_version=$(cat os_version.txt)
+          if [ "$new_os_version" == "$current_os_version" ]; then
+            echo -e "\e[1;32m当前版本为 $current_os_version\e[0m"
+            echo "os_result=false" >> $GITHUB_OUTPUT
+          else
+            echo -e "\e[1;31m旧版本为 $current_os_version, 新版本为 $new_os_version\e[0m"
+            echo "$new_os_version" >os_version.txt
+            echo "os_result=true" >> $GITHUB_OUTPUT
+            git config --global user.email "30484319+zjw2017@users.noreply.github.com"
+            git config --global user.name "柚稚"
+            git add ./os_version.txt
+            git commit -m "OS更新: $current_os_version -> $new_os_version"
+            git push
+          fi
+  check_engine_update:
+    if: needs.check_os_version.outputs.os_result == 'true'
+    needs: [check_os_version]
+    runs-on: ubuntu-latest
+    outputs:
+      engine_reslut: ${{ steps.get_engine_update.outputs.engine_reslut }}
+    steps:
+      - name: 检出仓库文件
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: Human-Machine-Matrix/PCEngine_Check
+          ref: main
+          token: ${{ secrets.GH_TOKEN }}
+          submodules: recursive
+      - name: 检查容器更新
+        id: get_engine_update
+        run: |
+          sudo apt-get install aria2 p7zip-full jq
+          sudo chmod -R 777 *
+          os_version=$(curl https://raw.githubusercontent.com/HegeKen/HyperData/refs/heads/main/devices/jinghu.json | jq -r '.branches[] | select(.tag == "CNXM") | .roms | to_entries | first.value.os' | sort -r | head -n1)
+          package_name=$(curl https://raw.githubusercontent.com/HegeKen/HyperData/refs/heads/main/devices/jinghu.json | jq -r '.branches[] | select(.tag == "CNXM") | .roms | to_entries | first.value.recovery' | sort -r | head -n1)
+          new_URL=https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/"$os_version"/"$package_name"
+          aria2c -x16 -j$(nproc) -U "Mozilla/5.0" -d "$GITHUB_WORKSPACE" "$new_URL"
+          "$GITHUB_WORKSPACE"/tools/binary/payload_extract -i "$package_name" -t zip -o . -X odm,product
+          "$GITHUB_WORKSPACE"/tools/binary/extract.erofs -i odm.img -X /etc/build.prop
+          new_pc_engine_file="$(grep "ro.vendor.mslg.rootfs.version" ./odm/etc/build.prop | cut -d"=" -f2)"
+          new_pc_engine_version="${new_pc_engine_file%.*}"
+          new_pc_engine_rootfs="$new_pc_engine_version"
+          new_pc_engine_version=$(echo "$new_pc_engine_version" | cut -d"-" -f2)
+          echo "new_pc_engine_version=$new_pc_engine_version" >> $GITHUB_ENV
+          echo "new_pc_engine_rootfs=$new_pc_engine_rootfs" >> $GITHUB_ENV
+          rm -rf ./odm
+          current_pc_engine_version=$(cat pc_engine_version.txt)
+          if [ "$new_pc_engine_version" == "$current_pc_engine_version" ]; then
+            echo -e "\e[1;32m当前 PC容器 版本为 $current_pc_engine_version\e[0m"
+          else
+            echo -e "\e[1;31m旧版本为 $current_pc_engine_version, 新版本为 $new_pc_engine_version\e[0m"
+            echo "$new_pc_engine_version" >pc_engine_version.txt
+            git config --global user.email "30484319+zjw2017@users.noreply.github.com"
+            git config --global user.name "柚稚"
+            git add ./pc_engine_version.txt
+            git commit -m "容器更新: $current_pc_engine_version -> $new_pc_engine_version"
+            git push
+            "$GITHUB_WORKSPACE"/tools/binary/extract.erofs -i odm.img -X /etc/assets/md5.txt
+            "$GITHUB_WORKSPACE"/tools/binary/extract.erofs -i odm.img -X /etc/assets/mslgusrimg
+            "$GITHUB_WORKSPACE"/tools/binary/extract.erofs -i odm.img -X /etc/assets/"$new_pc_engine_file"
+            "$GITHUB_WORKSPACE"/tools/binary/extract.erofs -i odm.img -X /etc/init/mslgservice.rc
+            "$GITHUB_WORKSPACE"/tools/binary/extract.erofs -i product.img -X /app/MSLgRdp
+            rm -rf odm.img product.img
+            mkdir -p ./newpc/odm ./newpc/product
+            mv odm/* newpc/odm
+            mv product/* newpc/product
+            rm -rf odm product
+            sudo 7z a "$GITHUB_WORKSPACE"/PC_Engine_"$new_pc_engine_rootfs".zip "$GITHUB_WORKSPACE"/newpc/*
+            rm -rf newpc
+            echo "upload=true" >> $GITHUB_ENV
+            touch file.log
+            echo "PC_Engine_$new_pc_engine_rootfs.zip" >file.log
+          fi
+      - if:  env.upload == 'true'
+        name: 上传到 Github Release
+        uses: ncipollo/release-action@v1.16.0
+        with:
+          artifacts: "PC_Engine_${{ env.new_pc_engine_rootfs }}.zip"
+          name: "PC 引擎 ${{ env.new_pc_engine_version }}"
+          tag: "${{ env.new_pc_engine_version }}"
+          bodyFile: "file.log"
+          allowUpdates: true
+          artifactErrorsFailBuild: true
+          makeLatest: true

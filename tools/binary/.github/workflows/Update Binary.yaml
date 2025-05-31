@@ -1,0 +1,142 @@
+name: Update Binary
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - ".github/**"
+  workflow_dispatch:
+
+jobs:
+  kona:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 设置 Git 提交账户
+        run: |
+          git config --global user.email "30484319+zjw2017@users.noreply.github.com"
+          git config --global user.name "柚稚"
+      - name: 拉取 action_build_kona_system
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: Human-Machine-Matrix/action_build_kona_system
+          token: ${{ secrets.GH_TOKEN }}
+          path: action_build_kona_system
+          submodules: recursive
+          fetch-depth: 0
+      - name: 提交 action_build_kona_system
+        run: |
+          cd action_build_kona_system
+          git submodule update --remote --merge
+          git commit -am "更新 Binary" || echo "无需更新 Binary"
+          git push origin main
+
+  lahaina:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 设置 Git 提交账户
+        run: |
+          git config --global user.email "30484319+zjw2017@users.noreply.github.com"
+          git config --global user.name "柚稚"
+      - name: 拉取 action_build_lahaina_system
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: Human-Machine-Matrix/action_build_lahaina_system
+          token: ${{ secrets.GH_TOKEN }}
+          path: action_build_lahaina_system
+          submodules: recursive
+          fetch-depth: 0
+      - name: 提交 action_build_lahaina_system
+        run: |
+          cd action_build_lahaina_system
+          git submodule update --remote --merge
+          git commit -am "更新 Binary" || echo "无需更新 Binary"
+          git push origin main
+  
+  liuqin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 设置 Git 提交账户
+        run: |
+          git config --global user.email "30484319+zjw2017@users.noreply.github.com"
+          git config --global user.name "柚稚"
+      - name: 拉取 action_build_liuqin_system
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: Human-Machine-Matrix/action_build_liuqin_system
+          token: ${{ secrets.GH_TOKEN }}
+          path: action_build_liuqin_system
+          submodules: recursive
+          fetch-depth: 0
+      - name: 提交 action_build_liuqin_system
+        run: |
+          cd action_build_liuqin_system
+          git submodule update --remote --merge
+          git commit -am "更新 Binary" || echo "无需更新 Binary"
+          git push origin main
+
+  kalama:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 设置 Git 提交账户
+        run: |
+          git config --global user.email "30484319+zjw2017@users.noreply.github.com"
+          git config --global user.name "柚稚"
+      - name: 拉取 action_build_kalama_system
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: Human-Machine-Matrix/action_build_kalama_system
+          token: ${{ secrets.GH_TOKEN }}
+          path: action_build_kalama_system
+          submodules: recursive
+          fetch-depth: 0
+      - name: 提交 action_build_kalama_system
+        run: |
+          cd action_build_kalama_system
+          git submodule update --remote --merge
+          git commit -am "更新 Binary" || echo "无需更新 Binary"
+          git push origin main
+
+  diting:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 设置 Git 提交账户
+        run: |
+          git config --global user.email "30484319+zjw2017@users.noreply.github.com"
+          git config --global user.name "柚稚"
+      - name: 拉取 action_build_diting_system
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: Human-Machine-Matrix/action_build_diting_system
+          token: ${{ secrets.GH_TOKEN }}
+          path: action_build_diting_system
+          submodules: recursive
+          fetch-depth: 0
+      - name: 提交 action_build_diting_system
+        run: |
+          cd action_build_diting_system
+          git submodule update --remote --merge
+          git commit -am "更新 Binary" || echo "无需更新 Binary"
+          git push origin main
+
+  PayloadToFlash:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 设置 Git 提交账户
+        run: |
+          git config --global user.email "30484319+zjw2017@users.noreply.github.com"
+          git config --global user.name "柚稚"
+      - name: 拉取 PayloadToFlash
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: Human-Machine-Matrix/PayloadToFlash
+          token: ${{ secrets.GH_TOKEN }}
+          path: PayloadToFlash
+          submodules: recursive
+          fetch-depth: 0
+      - name: 提交 PayloadToFlash
+        run: |
+          cd PayloadToFlash
+          git submodule update --remote --merge
+          git commit -am "更新 Binary" || echo "无需更新 Binary"
+          git push origin main
