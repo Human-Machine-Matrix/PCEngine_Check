@@ -1,9 +1,13 @@
 name: Automate Check
 
 on:
-  workflow_dispatch:
   schedule:
     - cron: '21 23 * * *'  # 每天 07:21 执行一次 (UTC时间)
+  workflow_dispatch:
+    inputs:
+      URL:
+        description: "下载地址"
+        type: string
 jobs:
   check_os_version:
     runs-on: ubuntu-latest
@@ -22,7 +26,11 @@ jobs:
         run: |
           sudo apt-get install jq
           sudo chmod -R 777 *
-          new_os_version=$(curl https://raw.githubusercontent.com/HegeKen/HyperData/refs/heads/main/devices/jinghu.json | jq -r '.branches[] | select(.tag == "CNXM") | .roms | to_entries | first.value.os' | sort -r | head -n1)
+          if [[ -z "$URL" ]]; then
+            new_os_version=$(curl https://raw.githubusercontent.com/HegeKen/HyperData/refs/heads/main/devices/jinghu.json | jq -r '.branches[] | select(.tag == "CNXM") | .roms | to_entries | first.value.os' | sort -r | head -n1)
+          else
+            new_os_version=$(echo $URL | cut -d"?" -f1 | cut -d"/" -f4)
+          fi
           current_os_version=$(cat os_version.txt)
           if [ "$new_os_version" == "$current_os_version" ]; then
             echo -e "\e[1;32m当前版本为 $current_os_version\e[0m"
@@ -37,6 +45,8 @@ jobs:
             git commit -m "OS更新: $current_os_version -> $new_os_version"
             git push
           fi
+        env:
+          URL: ${{ inputs.URL }}
   check_engine_update:
     if: needs.check_os_version.outputs.os_result == 'true'
     needs: [check_os_version]
@@ -56,9 +66,14 @@ jobs:
         run: |
           sudo apt-get install aria2 p7zip-full jq
           sudo chmod -R 777 *
-          os_version=$(curl https://raw.githubusercontent.com/HegeKen/HyperData/refs/heads/main/devices/jinghu.json | jq -r '.branches[] | select(.tag == "CNXM") | .roms | to_entries | first.value.os' | sort -r | head -n1)
-          package_name=$(curl https://raw.githubusercontent.com/HegeKen/HyperData/refs/heads/main/devices/jinghu.json | jq -r '.branches[] | select(.tag == "CNXM") | .roms | to_entries | first.value.recovery' | sort -r | head -n1)
-          new_URL=https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/"$os_version"/"$package_name"
+          if [[ -z "$URL" ]]; then
+            os_version=$(curl https://raw.githubusercontent.com/HegeKen/HyperData/refs/heads/main/devices/jinghu.json | jq -r '.branches[] | select(.tag == "CNXM") | .roms | to_entries | first.value.os' | sort -r | head -n1)
+            package_name=$(curl https://raw.githubusercontent.com/HegeKen/HyperData/refs/heads/main/devices/jinghu.json | jq -r '.branches[] | select(.tag == "CNXM") | .roms | to_entries | first.value.recovery' | sort -r | head -n1)
+            new_URL=https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/"$os_version"/"$package_name"
+          else
+            new_URL="$URL"
+            package_name=$(echo $URL | cut -d"?" -f1 | cut -d"/" -f5)
+          fi
           aria2c -x16 -j$(nproc) -U "Mozilla/5.0" -d "$GITHUB_WORKSPACE" "$new_URL"
           "$GITHUB_WORKSPACE"/tools/binary/payload_extract -i "$package_name" -t zip -o . -X odm,product
           "$GITHUB_WORKSPACE"/tools/binary/extract.erofs -i odm.img -X /etc/build.prop
@@ -96,6 +111,8 @@ jobs:
             touch file.log
             echo "PC_Engine_$new_pc_engine_rootfs.zip" >file.log
           fi
+        env:
+          URL: ${{ inputs.URL }}
       - if:  env.upload == 'true'
         name: 上传到 Github Release
         uses: ncipollo/release-action@v1.16.0
