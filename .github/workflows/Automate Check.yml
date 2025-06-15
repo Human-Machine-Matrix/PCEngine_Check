@@ -110,6 +110,7 @@ jobs:
             echo "upload=true" >> $GITHUB_ENV
             touch file.log
             echo "PC_Engine_$new_pc_engine_rootfs.zip" >file.log
+            curl -i -X POST -H 'Content-type':'application/json' -d '{"token":"${{ secrets.appToken }}","title":"容器更新: '"$current_pc_engine_version"' -> '"$new_pc_engine_version"'","content":" **容器更新: '"$current_pc_engine_version"' -> '"$new_pc_engine_version"'** \n \n **下载地址为：[https://github.com/Human-Machine-Matrix/PCEngine_Check/releases/download/'"$new_pc_engine_version"'/PC_Engine_'"$new_pc_engine_rootfs"'.zip](https://github.com/Human-Machine-Matrix/PCEngine_Check/releases/download/'"$new_pc_engine_version"'/PC_Engine_'"$new_pc_engine_rootfs"'.zip)** ","topic":"lahaina","template":"markdown"}' http://www.pushplus.plus/send || true
           fi
         env:
           URL: ${{ inputs.URL }}
