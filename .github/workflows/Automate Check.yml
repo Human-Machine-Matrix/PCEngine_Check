@@ -81,11 +81,13 @@ jobs:
           new_pc_engine_version="${new_pc_engine_file%.*}"
           new_pc_engine_rootfs="$new_pc_engine_version"
           new_pc_engine_version=$(echo "$new_pc_engine_version" | cut -d"-" -f2)
+          new_pc_engine_version_date=$(date -d "20${new_pc_engine_version//./-}" +%s)
           echo "new_pc_engine_version=$new_pc_engine_version" >> $GITHUB_ENV
           echo "new_pc_engine_rootfs=$new_pc_engine_rootfs" >> $GITHUB_ENV
           rm -rf ./odm
           current_pc_engine_version=$(cat pc_engine_version.txt)
-          if [ "$new_pc_engine_version" == "$current_pc_engine_version" ]; then
+          current_pc_engine_version_date=$(date -d "20${current_pc_engine_version//./-}" +%s) 
+          if (( new_pc_engine_version_date <= current_pc_engine_version_date )); then
             echo -e "\e[1;32m当前 PC容器 版本为 $current_pc_engine_version\e[0m"
           else
             echo -e "\e[1;31m旧版本为 $current_pc_engine_version, 新版本为 $new_pc_engine_version\e[0m"
