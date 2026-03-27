@@ -76,6 +76,7 @@ jobs:
           fi
           aria2c -x16 -j$(nproc) -U "Mozilla/5.0" -d "$GITHUB_WORKSPACE" "$new_URL"
           "$GITHUB_WORKSPACE"/tools/binary/payload_extract -i "$package_name" -o . -X odm,product
+          echo test
           "$GITHUB_WORKSPACE"/tools/binary/extract.erofs -i odm.img -X /etc/build.prop
           echo test
           new_pc_engine_file="$(grep "ro.vendor.mslg.rootfs.version" ./odm/etc/build.prop | cut -d"=" -f2)"
