@@ -13,9 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       os_result: ${{ steps.get_os_update.outputs.os_result }}
+      current_os_version: ${{ steps.get_os_update.outputs.current_os_version }}
+      new_os_version: ${{ steps.get_os_update.outputs.new_os_version }}
     steps:
       - name: 检出仓库文件
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v6.0.3
         with:
           repository: Human-Machine-Matrix/PCEngine_Check
           ref: main
@@ -27,7 +29,12 @@ jobs:
           sudo apt-get install jq
           sudo chmod -R 777 *
           if [[ -z "$URL" ]]; then
-            new_os_version=$(curl https://raw.githubusercontent.com/HegeKen/HyperData/refs/heads/main/devices/jinghu.json | jq -r '.branches[] | select(.tag == "CNXM") | .roms | to_entries | first.value.os' | sort -r | head -n1)
+            new_os_version=$(
+              curl -L \
+                -H "Accept: application/vnd.github.raw" \
+                "https://api.github.com/repos/HegeKen/HyperData/contents/devices/jinghu.json?ref=main" |
+              jq -r '.branches[] | select(.tag == "CNXM") | .roms | to_entries | first.value.os' | sort -r | head -n1         
+            )
           else
             new_os_version=$(echo $URL | cut -d"?" -f1 | cut -d"/" -f4)
           fi
@@ -37,13 +44,9 @@ jobs:
             echo "os_result=false" >> $GITHUB_OUTPUT
           else
             echo -e "\e[1;31m旧版本为 $current_os_version, 新版本为 $new_os_version\e[0m"
-            echo "$new_os_version" >os_version.txt
+            echo "new_os_version=$new_os_version" >> $GITHUB_OUTPUT
+            echo "current_os_version=$current_os_version" >> $GITHUB_OUTPUT
             echo "os_result=true" >> $GITHUB_OUTPUT
-            git config --global user.email "30484319+zjw2017@users.noreply.github.com"
-            git config --global user.name "柚稚"
-            git add ./os_version.txt
-            git commit -m "OS更新: $current_os_version -> $new_os_version"
-            git push
           fi
         env:
           URL: ${{ inputs.URL }}
@@ -55,7 +58,7 @@ jobs:
       engine_reslut: ${{ steps.get_engine_update.outputs.engine_reslut }}
     steps:
       - name: 检出仓库文件
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v6.0.3
         with:
           repository: Human-Machine-Matrix/PCEngine_Check
           ref: main
@@ -66,9 +69,25 @@ jobs:
         run: |
           sudo apt-get install aria2 p7zip-full jq
           sudo chmod -R 777 *
+          git config --global user.email "30484319+zjw2017@users.noreply.github.com"
+          git config --global user.name "柚稚"
+          echo "$new_os_version" >os_version.txt
+          git add ./os_version.txt
           if [[ -z "$URL" ]]; then
-            os_version=$(curl https://raw.githubusercontent.com/HegeKen/HyperData/refs/heads/main/devices/jinghu.json | jq -r '.branches[] | select(.tag == "CNXM") | .roms | to_entries | first.value.os' | sort -r | head -n1)
-            package_name=$(curl https://raw.githubusercontent.com/HegeKen/HyperData/refs/heads/main/devices/jinghu.json | jq -r '.branches[] | select(.tag == "CNXM") | .roms | to_entries | first.value.recovery' | sort -r | head -n1)
+            curl -L \
+              -H "Accept: application/vnd.github.raw" \
+              "https://api.github.com/repos/HegeKen/HyperData/contents/devices/jinghu.json?ref=main" >jinghu.json         
+            read -r os_version package_name < <(
+              jq -r '
+                .branches[]
+                | select(.tag == "CNXM")
+                | .roms
+                | to_entries
+                | first.value
+                | "\(.os) \(.recovery)"
+              ' jinghu.json
+            )
+            rm -rf jinghu.json
             new_URL=https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/"$os_version"/"$package_name"
           else
             new_URL="$URL"
@@ -76,9 +95,7 @@ jobs:
           fi
           aria2c -x16 -j$(nproc) -U "Mozilla/5.0" -d "$GITHUB_WORKSPACE" "$new_URL"
           "$GITHUB_WORKSPACE"/tools/binary/payload_extract -i "$package_name" -o . -X odm,product
-          echo test
           "$GITHUB_WORKSPACE"/tools/binary/extract.erofs -i odm.img -X /etc/build.prop
-          echo test
           new_pc_engine_file="$(grep "ro.vendor.mslg.rootfs.version" ./odm/etc/build.prop | cut -d"=" -f2)"
           new_pc_engine_version="${new_pc_engine_file%.*}"
           new_pc_engine_rootfs="$new_pc_engine_version"
@@ -88,17 +105,26 @@ jobs:
           echo "new_pc_engine_rootfs=$new_pc_engine_rootfs" >> $GITHUB_ENV
           rm -rf ./odm
           current_pc_engine_version=$(cat pc_engine_version.txt)
-          current_pc_engine_version_date=$(date -d "20${current_pc_engine_version//./-}" +%s) 
+          current_pc_engine_version_date=$(date -d "20${current_pc_engine_version//./-}" +%s)
           if (( new_pc_engine_version_date <= current_pc_engine_version_date )); then
             echo -e "\e[1;32m当前 PC容器 版本为 $current_pc_engine_version\e[0m"
+            commit_msg=$(cat <<EOF
+          更新 OS 版本
+
+          OS更新: $current_os_version -> $new_os_version
+          EOF
+          )
           else
             echo -e "\e[1;31m旧版本为 $current_pc_engine_version, 新版本为 $new_pc_engine_version\e[0m"
             echo "$new_pc_engine_version" >pc_engine_version.txt
-            git config --global user.email "30484319+zjw2017@users.noreply.github.com"
-            git config --global user.name "柚稚"
             git add ./pc_engine_version.txt
-            git commit -m "容器更新: $current_pc_engine_version -> $new_pc_engine_version"
-            git push
+            commit_msg=$(cat <<EOF
+          更新 OS 版本 及 容器版本
+
+          OS更新: $current_os_version -> $new_os_version
+          容器更新: $current_pc_engine_version -> $new_pc_engine_version
+          EOF
+          )
             "$GITHUB_WORKSPACE"/tools/binary/extract.erofs -i odm.img -X /etc/assets/md5.txt
             "$GITHUB_WORKSPACE"/tools/binary/extract.erofs -i odm.img -X /etc/assets/mslgusrimg
             "$GITHUB_WORKSPACE"/tools/binary/extract.erofs -i odm.img -X /etc/assets/"$new_pc_engine_file"
@@ -116,11 +142,15 @@ jobs:
             echo "PC_Engine_$new_pc_engine_rootfs.zip" >file.log
             curl -i -X POST -H 'Content-type':'application/json' -d '{"token":"${{ secrets.appToken }}","title":"容器更新: '"$current_pc_engine_version"' -> '"$new_pc_engine_version"'","content":" **容器更新: '"$current_pc_engine_version"' -> '"$new_pc_engine_version"'** \n \n **下载地址为：[https://github.com/Human-Machine-Matrix/PCEngine_Check/releases/download/'"$new_pc_engine_version"'/PC_Engine_'"$new_pc_engine_rootfs"'.zip](https://github.com/Human-Machine-Matrix/PCEngine_Check/releases/download/'"$new_pc_engine_version"'/PC_Engine_'"$new_pc_engine_rootfs"'.zip)** ","topic":"lahaina","template":"markdown"}' http://www.pushplus.plus/send || true
           fi
+          git commit -am "$commit_msg"
+          git push
         env:
           URL: ${{ inputs.URL }}
+          current_os_version: ${{ needs.check_os_version.outputs.current_os_version }}
+          new_os_version: ${{ needs.check_os_version.outputs.new_os_version }}
       - if:  env.upload == 'true'
         name: 上传到 Github Release
-        uses: ncipollo/release-action@v1.20.0
+        uses: ncipollo/release-action@v1.21.0
         with:
           artifacts: "PC_Engine_${{ env.new_pc_engine_rootfs }}.zip"
           name: "PC 引擎 ${{ env.new_pc_engine_version }}"
